@@ -32,7 +32,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: 44.220.179.32
-        username: ec2-username
+        username: ec2-user
         key: ${{secrets.SSH_PRIVATE_KEY}}
         script: |
           docker stop resume || echo ""
