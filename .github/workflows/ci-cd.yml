@@ -49,9 +49,9 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.build-and-push.outputs.image }} # or specify the image tag directly
-          format: table
-          exit-code: 0       # Fail the workflow if vulnerabilities are found
-          severity: HIGH,CRITICAL
+          format: "table"
+          exit-code: "0"   
+          severity: "HIGH,CRITICAL"
 
       - name: push image to ECR
         run: |
