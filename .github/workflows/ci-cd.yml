@@ -4,9 +4,13 @@ on:
 #   workflow_dispatch:
 
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
+
+permissions:
+      id-token: write
+      contents: read
 
 env:
   AWS_REGION: us-east-1
@@ -16,9 +20,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest # github-runner
-    permissions:
-      id-token: write
-      contents: read
+    
     steps:
       - name: checkout - clone repo
         uses: actions/checkout@v3
