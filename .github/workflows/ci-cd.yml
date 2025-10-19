@@ -19,10 +19,12 @@ env:
   AWS_SECRET: ${{secrets.AWS_SECRET}}
   ECR_REPO_NAME: dev
   IMAGE_TAG: ${{github.run_number}}
+  ECS_CLUSTER: demo-ecs-cluster
+  ECS_SERVICE: demo-ecs-service
 
 jobs:
 
-  build:
+  build_stage:
     runs-on: ubuntu-latest # github-runner
     
     steps:
@@ -56,3 +58,20 @@ jobs:
       - name: push image to ECR
         run: |
           docker push ${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}
+
+      - name: store image in github env
+        run: echo "Image=${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}" >> $GITHUB_ENV
+
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_stage
+    steps:
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          cluster: ${{ env.ECS_CLUSTER }}
+          service: ${{ env.ECS_SERVICE }}
+          #task-definition: ecs-task-def.json  # must exist in repo or generated dynamically
+          task-definition: demo-ecs-task
+          wait-for-service-stability: true
