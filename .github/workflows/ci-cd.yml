@@ -15,7 +15,7 @@ env:
 jobs:
 
   build:
-    runs_on: ubuntu-latest # github-runner
+    runs-on: ubuntu-latest # github-runner
     steps:
       - name: checkout - clone repo
         uses: actions/checkout@v3
