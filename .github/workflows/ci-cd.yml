@@ -1,0 +1,29 @@
+name: build push and deploy image
+
+on:
+  workflow_dispatch:
+
+#  push:
+#    branches: ["main"]
+#  pull_request:
+#    branches: ["main"]
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE: ${{secrets.AWS_ACTIONS_ROLE}}
+
+jobs:
+
+  build:
+    runs_on: ubuntu-latest # github-runner
+    steps:
+      - name: checkout - clone repo
+        uses: actions/checkout@v3
+
+      - name: AWS creds configuration
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{env.AWS_ROLE}}
+          aws-region: ${{env.AWS_REGION}}
+      - name: login to EC2_USER
+        uses: aws-actions/amazon-ecr-login@v1
