@@ -17,6 +17,8 @@ env:
   AWS_ROLE: ${{secrets.AWS_ACTIONS_ROLE}}
   AWS_ACCESS: ${{secrets.AWS_ACCESS}}
   AWS_SECRET: ${{secrets.AWS_SECRET}}
+  ECR_REPO_NAME: dev
+  IMAGE_TAG: ${{github.run_number}}
 
 jobs:
 
@@ -33,6 +35,13 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
           aws-region: ${{ env.AWS_REGION }}
+
       - name: login to ECR
-        uses: aws-actions/amazon-ecr-login@v2
         id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+        
+      - name: build, tag and push image
+        id: build-and-push
+        run: |
+          docker build -t ${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}} .
+          docker push ${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}
