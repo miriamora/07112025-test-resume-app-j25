@@ -16,6 +16,9 @@ jobs:
 
   build:
     runs-on: ubuntu-latest # github-runner
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: checkout - clone repo
         uses: actions/checkout@v3
