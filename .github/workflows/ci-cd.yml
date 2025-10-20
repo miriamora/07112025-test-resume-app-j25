@@ -82,5 +82,5 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           service: ${{ env.ECS_SERVICE }}
           #task-definition: ecs-task-def.json  # must exist in repo or generated dynamically
-          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          task-definition: demo-ecs-task-revision2.json
           wait-for-service-stability: true
