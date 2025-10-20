@@ -9,11 +9,11 @@ on:
 permissions:
   id-token: write 
   contents: read
-  pull-requests: write 
+  #pull-requests: write 
 
 env:
   AWS_REGION: us-east-1
-  AWS_ROLE: ${{ secrets.AWS_ACTION_ROLE }}
+  AWS_ROLE: ${{ secrets.AWS_ACTIONS_ROLE }}
   AWS_ACCESS: ${{secrets.AWS_ACCESS}}
   AWS_SECRET: ${{secrets.AWS_SECRET}}
   ECR_REPO_NAME: dev
