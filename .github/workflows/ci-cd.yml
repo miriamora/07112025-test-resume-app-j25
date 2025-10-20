@@ -1,75 +1,121 @@
-name: build push and deploy image
+name: Build, Push, and Deploy Image
 
 on:
-#   workflow_dispatch:
-
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
 permissions:
-      id-token: write
-      contents: read
-      #pull_request: write
+  id-token: write 
+  contents: read
+  pull-requests: write 
 
 env:
   AWS_REGION: us-east-1
-  AWS_ROLE: ${{secrets.AWS_ACTIONS_ROLE}}
+  AWS_ROLE: ${{ secrets.AWS_ACTION_ROLE }}
   AWS_ACCESS: ${{secrets.AWS_ACCESS}}
   AWS_SECRET: ${{secrets.AWS_SECRET}}
   ECR_REPO_NAME: dev
-  IMAGE_TAG: ${{github.run_number}}
+  IMAGE_TAG: ${{ github.run_number }}
   ECS_CLUSTER: demo-ecs-cluster
   ECS_SERVICE: demo-ecs-service
   TASK_DEFINITION: demo-ecs-task
   CONTAINER_NAME: demo-app
 
 jobs:
-
-  build_stage:
-    runs-on: ubuntu-latest # github-runner
-    
+  Build:
+    runs-on: ubuntu-latest
+    outputs:  # Define outputs for the Deploy job
+      image-uri: ${{ steps.set-image.outputs.image-uri }}
     steps:
-      - name: checkout - clone repo
+      - name: Clone repo
         uses: actions/checkout@v3
-
-      - name: AWS creds configuration
+      
+      - name: AWS Creds Config 
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: login to ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-        
-      - name: build, tag and push image
-        id: build-and-push
-        run: |
-          docker build -t ${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}} .
       
-#      - name: Scan Docker image with Trivy
-#        uses: aquasecurity/trivy-action@master
-#        with:
-#          image-ref: ${{ steps.build-and-push.outputs.image }} # or specify the image tag directly
-#          format: "table"
-#          exit-code: "0" 
-#          output: "trivy-image-results.json"  
-#          severity: "HIGH,CRITICAL"
+      - name: Login to ECR 
+        uses: aws-actions/amazon-ecr-login@v1
+        id: ecr-login
+      - name: FS Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'  
+          format: 'json'
+          output: "trivy-fs-results.json"
+          exit-code: '0'  
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true  
 
-      - name: push image to ECR
+      - name: Build and tag image 
         run: |
-          docker push ${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}
+          docker build -t ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{ env.IMAGE_TAG }} .
+      
+      - name: Scan Docker Image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{ env.IMAGE_TAG }}"
+          format: "json"
+          exit-code: "0"
+          output: "trivy-image-results.json"
+          severity: "CRITICAL,HIGH"
+      
+      - name: Push image to ECR
+        run: |
+          docker push ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{ env.IMAGE_TAG }}
+      
+      - name: Store image URI for Deploy job
+        id: set-image
+        run: |
+          IMAGE_URI="${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME}}:${{ env.IMAGE_TAG }}"
+          echo "image-uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+      
+      - name: Post Fix Suggestions on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Use require() to import Node.js modules
+            const fs = require('fs');
+            
+            try {
+              // Read file synchronously (use async methods if preferred)
+              const fsReport = JSON.parse(fs.readFileSync('trivy-fs-results.json', 'utf8'));
+              const imageReport = JSON.parse(fs.readFileSync('trivy-image-results.json', 'utf8'));
+              
+              const formatVulns = (vulns) => vulns.map(v => `
+                **Package:** ${v.PkgName} (${v.InstalledVersion})  
+                **CVE:** ${v.VulnerabilityID} (${v.Severity})  
+                **Fix Version:** ${v.FixedVersion || 'None'}  
+                **Advisory:** ${v.PrimaryURL || 'N/A'}
+              `).join('\n');
 
-      - name: store image in github env
-        run: echo "Image=${{steps.ecr-login.outputs.registry}}/${{env.ECR_REPO_NAME}}:${{env.IMAGE_TAG}}" >> $GITHUB_ENV
+              const fsVulns = fsReport.Results?.flatMap(r => r.Vulnerabilities || []);
+              const imageVulns = imageReport.Results?.flatMap(r => r.Vulnerabilities || []);
 
+              let comment = '## ��� Trivy Security Report\n';
+              if (fsVulns.length > 0) comment += `### ��� Filesystem Vulnerabilities\n${formatVulns(fsVulns)}\n`;
+              if (imageVulns.length > 0) comment += `### ��� Docker Image Vulnerabilities\n${formatVulns(imageVulns)}\n`;
+              if (fsVulns.length + imageVulns.length === 0) comment += '✅ No critical/high vulnerabilities found.';
 
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              core.error('Failed to process Trivy results: ' + error.message);
+            }
   Deploy:
     runs-on: ubuntu-latest
-    needs: build_stage  # Depends on Build job
+    needs: Build  # Depends on Build job
     steps:
       - name: AWS Creds Config 
         uses: aws-actions/configure-aws-credentials@v4
@@ -94,4 +140,3 @@ jobs:
       
       - name: Update ECS service
         run: |
-          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --task-definition ${{ env.NEW_TASK_DEFINITION }} --force-new-deployment
