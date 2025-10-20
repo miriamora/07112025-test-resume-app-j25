@@ -11,6 +11,7 @@ on:
 permissions:
       id-token: write
       contents: read
+      pull_request: write
 
 env:
   AWS_REGION: us-east-1
@@ -21,6 +22,8 @@ env:
   IMAGE_TAG: ${{github.run_number}}
   ECS_CLUSTER: demo-ecs-cluster
   ECS_SERVICE: demo-ecs-service
+  TASK_DEFINITION: demo-ecs-task
+  CONTAINER_NAME: demo-app
 
 jobs:
 
