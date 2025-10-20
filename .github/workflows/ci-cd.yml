@@ -74,14 +74,13 @@ jobs:
         with:
           task-definition: demo-ecs-task-revision2.json   # or .taskdef.json file
           container-name: demo-app
-          image: ${{ steps.build-and-push.outputs.image }}
+          image: ${{ needs.build_stage.outputs.image }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        #needs: task-def
         with:
           cluster: ${{ env.ECS_CLUSTER }}
           service: ${{ env.ECS_SERVICE }}
           #task-definition: ecs-task-def.json  # must exist in repo or generated dynamically
-          task-definition: demo-ecs-task-revision2.json
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
           wait-for-service-stability: true
